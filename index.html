@@ -1,0 +1,312 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Isothermal vs. temperature-programmed GC (CHM4130 PS4, Problem 18)</title>
+<style>
+:root{--ink:#1f2d3a;--navy:#163e63;--steel:#326b9e;--muted:#566676;--rule:#cfdbe6;--panel:#f1f5f9;--bg:#ffffff;--grid:#e6edf3;--sig:#163e63;--temp:#b8601a;color-scheme:light}
+@media (prefers-color-scheme:dark){:root{--ink:#e3eaf1;--navy:#a9cdf0;--steel:#7fb0dc;--muted:#9fb0c0;--rule:#34475a;--panel:#17232f;--bg:#0f1820;--grid:#1f2e3b;--sig:#a9cdf0;--temp:#eba45f;color-scheme:dark}}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);font:16px/1.55 Arial,Helvetica,sans-serif}
+main{max-width:920px;margin:0 auto;padding:22px 18px 34px}
+h1{font-size:1.45rem;color:var(--navy);margin:0 0 2px}
+.src{margin:0 0 14px;color:var(--muted);font-size:.9rem}
+.lede{margin:0 0 10px;max-width:72ch}
+.controls{display:flex;flex-wrap:wrap;align-items:center;gap:10px 16px;margin:10px 0}
+.controls label{font-size:.95rem;min-width:13em}
+.lab{font-size:.95rem}
+input[type=range]{width:min(300px,100%);accent-color:var(--steel)}
+output{font-weight:700;font-variant-numeric:tabular-nums;min-width:6em}
+.group{display:flex;flex-wrap:wrap;gap:6px}
+button{font:inherit;font-size:.9rem;padding:5px 11px;border:1px solid var(--steel);border-radius:4px;background:transparent;color:var(--navy);cursor:pointer}
+button:hover{background:var(--panel)}
+button[aria-pressed=true]{background:var(--navy);border-color:var(--navy);color:var(--bg)}
+:focus-visible{outline:2px solid var(--steel);outline-offset:2px}
+fieldset{border:1px solid var(--rule);border-radius:6px;padding:4px 14px 6px;margin:10px 0}
+legend{font-size:.9rem;color:var(--muted);padding:0 6px}
+.readout{display:flex;flex-wrap:wrap;margin:12px 0;border-top:1px solid var(--rule);border-bottom:1px solid var(--rule)}
+.readout div{padding:8px 18px 8px 0;margin-right:18px;border-right:1px solid var(--rule)}
+.readout div:last-child{border-right:0;margin-right:0}
+.readout span{display:block;font-size:.8rem;color:var(--muted)}
+.readout b{font-size:1.08rem;font-variant-numeric:tabular-nums}
+.chart{overflow-x:auto;margin-top:6px}
+.chart svg{min-width:640px}
+svg{display:block;width:100%;height:auto}
+.ax{stroke:var(--muted);stroke-width:1}
+.gl{stroke:var(--grid);stroke-width:1}
+.tk{fill:var(--muted);font-size:12px}
+.axt{fill:var(--ink);font-size:13px}
+.halo{paint-order:stroke;stroke:var(--bg);stroke-width:4px;stroke-linejoin:round}
+.summary{border-left:3px solid var(--steel);background:var(--panel);padding:10px 14px;margin:12px 0;max-width:80ch}
+.summary p{margin:0}
+details{margin:10px 0}
+summary{cursor:pointer;color:var(--navy)}
+.wrap{overflow-x:auto}
+table{border-collapse:collapse;margin:8px 0 6px;font-variant-numeric:tabular-nums;min-width:min(520px,100%)}
+th,td{text-align:right;padding:4px 12px;border-bottom:1px solid var(--rule)}
+th:first-child,td:first-child{text-align:left}
+th{font-size:.85rem;color:var(--muted);font-weight:400}
+tr.out td{color:var(--muted)}
+.note{font-size:.9rem;color:var(--muted);max-width:76ch}
+</style>
+</head>
+<body>
+<main>
+<h1>Isothermal vs. temperature-programmed GC</h1>
+<p class="src">CHM4130 Practice Problem Set 4, Problem 18</p>
+<p class="lede">Nineteen n-alkanes, C3 to C21, are injected together. Run the oven at one temperature, or build a temperature program, and see how programming solves the general elution problem: early peaks crowd together, and late peaks take hours and spread out.</p>
+
+<div class="controls">
+  <span class="lab" id="modelab">Oven</span>
+  <div class="group" role="group" aria-labelledby="modelab">
+    <button type="button" data-mode="iso" aria-pressed="true">Isothermal</button>
+    <button type="button" data-mode="prog" aria-pressed="false">Temperature program</button>
+  </div>
+</div>
+
+<fieldset id="isoBox">
+  <legend>Isothermal run</legend>
+  <div class="controls">
+    <label for="tiso">Oven temperature</label>
+    <input type="range" id="tiso" min="40" max="300" step="1" value="150">
+    <output id="tisoOut" for="tiso">150 °C</output>
+  </div>
+</fieldset>
+
+<fieldset id="progBox" hidden>
+  <legend>Temperature program</legend>
+  <div class="controls">
+    <label for="t1">Starting temperature</label>
+    <input type="range" id="t1" min="30" max="150" step="1" value="35">
+    <output id="t1Out" for="t1">35 °C</output>
+  </div>
+  <div class="controls">
+    <label for="hold">Hold at the start</label>
+    <input type="range" id="hold" min="0" max="10" step="0.5" value="2">
+    <output id="holdOut" for="hold">2.0 min</output>
+  </div>
+  <div class="controls">
+    <label for="rate">Heating rate</label>
+    <input type="range" id="rate" min="1" max="30" step="0.5" value="8">
+    <output id="rateOut" for="rate">8.0 °C/min</output>
+  </div>
+  <div class="controls">
+    <label for="t2">Final temperature</label>
+    <input type="range" id="t2" min="150" max="325" step="1" value="280">
+    <output id="t2Out" for="t2">280 °C</output>
+  </div>
+</fieldset>
+
+<div class="controls">
+  <span class="lab" id="winlab">Show the first</span>
+  <div class="group" role="group" aria-labelledby="winlab">
+    <button type="button" data-win="10" aria-pressed="false">10 min</button>
+    <button type="button" data-win="30" aria-pressed="false">30 min</button>
+    <button type="button" data-win="60" aria-pressed="true">60 min</button>
+    <button type="button" data-win="120" aria-pressed="false">2 h</button>
+  </div>
+</div>
+<div class="controls">
+  <button type="button" id="pIso">Problem 18: isothermal at 150 °C</button>
+  <button type="button" id="pProg">Problem 18: 35 °C for 2 min, then 8 °C/min to 280 °C</button>
+</div>
+
+<div class="chart"><svg id="plot" viewBox="0 0 820 420" role="img" aria-label="Simulated chromatogram of C3 to C21 alkanes with the oven temperature"></svg></div>
+
+<div class="readout" aria-live="polite">
+  <div><span>Alkanes eluted</span><b id="rCount"></b></div>
+  <div><span>Last peak in the window</span><b id="rLast"></b></div>
+  <div><span>Peak widths (4σ)</span><b id="rWidth"></b></div>
+  <div><span>Oven temperature at the last peak</span><b id="rTemp"></b></div>
+</div>
+<div class="summary" aria-live="polite"><p id="sum"></p></div>
+
+<details>
+  <summary>Retention time of every alkane</summary>
+  <div class="wrap">
+  <table>
+    <thead><tr><th>Alkane</th><th>Retention time</th><th>Peak width (4σ)</th><th>Oven temperature when it elutes</th></tr></thead>
+    <tbody id="rows"></tbody>
+  </table>
+  </div>
+</details>
+
+<p class="note">Illustrative retention model for a 30 m PDMS capillary column with a dead time of 1.0 min and about 10,000 plates. Each alkane’s retention factor follows ln k = ΔH/RT + constant, with ΔH rising by about 4.8 kJ/mol per CH₂ group. The model reproduces the answer key: at 150 °C, C16 elutes at about 48 min, and with the 35 → 280 °C program, C21 leaves at about 262 °C. Every alkane has the same peak area, so narrower peaks are taller. Very sharp peaks are cut off at the top of the chart.</p>
+</main>
+
+<script>
+(function(){
+  var NS='http://www.w3.org/2000/svg';
+  function el(tag,attrs,text){var e=document.createElementNS(NS,tag);for(var k in attrs)e.setAttribute(k,attrs[k]);if(text!=null)e.textContent=text;return e;}
+  /* retention model: ln k = (a + b n)/T + c + d n, T in kelvin */
+  var A=533.65,B=580,C=-7.61182,D=-0.733121,TM=1.0,SQN=100,NMIN=3,NMAX=21;
+  function kOf(n,TC){return Math.exp((A+B*n)/(TC+273.15)+C+D*n);}
+  var st={mode:'iso',win:60};
+  var $=function(id){return document.getElementById(id);};
+  var tiso=$('tiso'),t1=$('t1'),hold=$('hold'),rate=$('rate'),t2=$('t2'),svg=$('plot');
+  function params(){return {mode:st.mode,Tiso:+tiso.value,T1:+t1.value,hold:+hold.value,rate:+rate.value,T2:Math.max(+t2.value,+t1.value)};}
+  function ovenT(t,p){if(p.mode==='iso')return p.Tiso;if(t<p.hold)return p.T1;return Math.min(p.T2,p.T1+p.rate*(t-p.hold));}
+  function compute(p){
+    var res=[],n,i;
+    if(p.mode==='iso'){
+      for(n=NMIN;n<=NMAX;n++){var tr=TM*(1+kOf(n,p.Tiso));res.push({n:n,tR:tr,sig:tr/SQN,Te:p.Tiso});}
+      return res;
+    }
+    var cnt=NMAX-NMIN+1,x=[],done=[],left=cnt,t=0,dt=0.01,tEnd=p.hold+(p.T2-p.T1)/p.rate;
+    for(i=0;i<cnt;i++){x.push(0);done.push(false);res.push(null);}
+    while(t<tEnd&&left>0){
+      var Tm=ovenT(t+dt/2,p);
+      for(i=0;i<cnt;i++){
+        if(done[i])continue;
+        var dx=dt/(TM*(1+kOf(i+NMIN,Tm)));
+        if(x[i]+dx>=1){
+          var te=t+(1-x[i])/dx*dt,Te=ovenT(te,p);
+          res[i]={n:i+NMIN,tR:te,sig:TM*(1+kOf(i+NMIN,Te))/SQN,Te:Te};done[i]=true;left--;
+        }else x[i]+=dx;
+      }
+      t+=dt;
+    }
+    for(i=0;i<cnt;i++){
+      if(!done[i]){var kk=kOf(i+NMIN,p.T2);res[i]={n:i+NMIN,tR:t+(1-x[i])*TM*(1+kk),sig:TM*(1+kk)/SQN,Te:p.T2};}
+    }
+    return res;
+  }
+  function fmtT(t){
+    if(t<100)return t.toFixed(1)+' min';
+    var h=t/60;if(h<48)return (h<10?h.toFixed(1):Math.round(h))+' h';
+    var dd=h/24;if(dd<365)return Math.round(dd)+' days';
+    return 'more than a year';
+  }
+  function fmtW(w){return w<0.1?w.toFixed(3):(w<10?w.toFixed(2):w.toFixed(1));}
+  function rangeName(a,b){return a===b?'C'+a:'C'+a+'–C'+b;}
+
+  var W=820,H=420,PL=56,PR=64,PT=34,PB=50,TMAXC=350;
+  var SIGREF=0.025,HMAX=1/(SIGREF*Math.sqrt(2*Math.PI)),TOPY=PT+24;
+  function draw(){
+    var p=params(),win=st.win;
+    $('tisoOut').textContent=p.Tiso+' °C';
+    $('t1Out').textContent=p.T1+' °C';
+    $('holdOut').textContent=p.hold.toFixed(1)+' min';
+    $('rateOut').textContent=p.rate.toFixed(1)+' °C/min';
+    $('t2Out').textContent=(+t2.value)+' °C';
+    var res=compute(p);
+    function X(t){return PL+t/win*(W-PL-PR);}
+    function Ys(v){return Math.max(TOPY,H-PB-v/HMAX*(H-PB-TOPY));}
+    function Yt(T){return H-PB-T/TMAXC*(H-PB-PT);}
+    while(svg.firstChild)svg.removeChild(svg.firstChild);
+    var step=win<=10?2:(win<=30?5:(win<=60?10:20)),t,i;
+    for(t=0;t<=win+1e-9;t+=step){
+      svg.appendChild(el('line',{x1:X(t),y1:PT,x2:X(t),y2:H-PB,'class':'gl'}));
+      svg.appendChild(el('text',{x:X(t),y:H-PB+19,'text-anchor':'middle','class':'tk'},String(t)));
+    }
+    for(var T=0;T<=TMAXC;T+=50){
+      svg.appendChild(el('text',{x:W-PR+8,y:Yt(T)+4,'class':'tk',fill:'var(--temp)'},String(T)));
+    }
+    svg.appendChild(el('line',{x1:PL,y1:H-PB,x2:W-PR,y2:H-PB,'class':'ax'}));
+    svg.appendChild(el('line',{x1:PL,y1:PT,x2:PL,y2:H-PB,'class':'ax'}));
+    svg.appendChild(el('line',{x1:W-PR,y1:PT,x2:W-PR,y2:H-PB,stroke:'var(--temp)','stroke-width':1}));
+    svg.appendChild(el('text',{x:(PL+W-PR)/2,y:H-12,'text-anchor':'middle','class':'axt'},'Time (min)'));
+    svg.appendChild(el('text',{transform:'translate(22,'+((PT+H-PB)/2)+') rotate(-90)','text-anchor':'middle','class':'axt'},'Detector signal'));
+    svg.appendChild(el('text',{transform:'translate('+(W-14)+','+((PT+H-PB)/2)+') rotate(90)','text-anchor':'middle','class':'axt',fill:'var(--temp)'},'Oven temperature (°C)'));
+    // dead time
+    if(win<=30){
+      svg.appendChild(el('line',{x1:X(TM),y1:PT+40,x2:X(TM),y2:H-PB,stroke:'var(--muted)','stroke-dasharray':'2 4'}));
+      if(X(TM)-PL>60)svg.appendChild(el('text',{x:X(TM)-4,y:H-PB-8,'text-anchor':'end','font-size':11,fill:'var(--muted)','class':'halo'},'dead time'));
+    }
+    // oven temperature trace
+    var pts=[0];
+    if(p.mode==='prog'){pts.push(p.hold);pts.push(p.hold+(p.T2-p.T1)/p.rate);}
+    pts.push(win);
+    var td='';pts.filter(function(v){return v<=win;}).sort(function(a,b){return a-b;}).forEach(function(v){td+=(td?'L':'M')+X(v).toFixed(1)+' '+Yt(ovenT(v,p)).toFixed(1);});
+    svg.appendChild(el('path',{d:td,fill:'none',stroke:'var(--temp)','stroke-width':2,'stroke-dasharray':'7 4'}));
+    // chromatogram, sampled more finely around every peak
+    var vis=res.filter(function(r){return r.tR-6*r.sig<win;});
+    var xs=[];for(i=0;i<=1400;i++)xs.push(win*i/1400);
+    vis.forEach(function(r){for(var j=-24;j<=24;j++){var v=r.tR+j*r.sig/4;if(v>=0&&v<=win)xs.push(v);}});
+    xs.sort(function(a,b){return a-b;});
+    var sd='',prev=-1;
+    xs.forEach(function(xv){
+      if(xv-prev<1e-7)return;prev=xv;
+      var s=0;vis.forEach(function(r){var z=(xv-r.tR)/r.sig;if(z>-9&&z<9)s+=Math.exp(-0.5*z*z)/(r.sig*2.5066283);});
+      sd+=(sd?'L':'M')+X(xv).toFixed(2)+' '+Ys(s).toFixed(2);
+    });
+    svg.appendChild(el('path',{d:sd,fill:'none',stroke:'var(--sig)','stroke-width':1.6,'stroke-linejoin':'round'}));
+    // peak labels: crowded groups get a range label; otherwise label every peak, or odd ones if space is short
+    var inWin=res.filter(function(r){return r.tR<=win;});
+    var items=[],grp=null;
+    inWin.forEach(function(r){
+      var x=X(r.tR),top=Ys(1/(r.sig*2.5066283));
+      if(grp&&x-grp.lastX<7){grp.b=r.n;grp.lastX=x;grp.top=Math.min(grp.top,top);grp.x2=x;}
+      else{grp={a:r.n,b:r.n,x1:x,x2:x,lastX:x,top:top};items.push(grp);}
+    });
+    function place(oddOnly){
+      var out=[],right=-1e9,singles=0,skipped=0;
+      items.forEach(function(it){
+        var single=it.a===it.b;
+        if(oddOnly&&single&&it.a%2===0)return;
+        if(single)singles++;
+        var txt=rangeName(it.a,it.b),w=txt.length*6.6,cx=(it.x1+it.x2)/2;
+        if(cx-w/2>=right+4){out.push({txt:txt,x:cx,y:Math.max(PT+14,it.top-6)});right=cx+w/2;}
+        else if(single)skipped++;
+      });
+      return {out:out,crowded:skipped>singles/3};
+    }
+    var lab=place(false);if(lab.crowded)lab=place(true);
+    lab.out.forEach(function(l){svg.appendChild(el('text',{x:l.x,y:l.y,'text-anchor':'middle','font-size':11,fill:'var(--ink)','class':'halo'},l.txt));});
+    svg.appendChild(el('text',{x:W-PR-6,y:PT+12,'text-anchor':'end','font-size':12,fill:'var(--temp)','class':'halo'},p.mode==='iso'?'Isothermal '+p.Tiso+' °C':'Programmed '+p.T1+' → '+p.T2+' °C at '+p.rate.toFixed(1)+' °C/min'));
+    // readouts
+    var out=res.filter(function(r){return r.tR>win;});
+    var last=inWin[inWin.length-1];
+    $('rCount').textContent=inWin.length+' of 19 in '+(win>=120?'2 h':win+' min');
+    $('rLast').textContent=last?('C'+last.n+' at '+fmtT(last.tR)):'none yet';
+    if(inWin.length){
+      var ws=inWin.map(function(r){return 4*r.sig;});
+      $('rWidth').textContent=fmtW(Math.min.apply(null,ws))+' to '+fmtW(Math.max.apply(null,ws))+' min';
+    }else $('rWidth').textContent='–';
+    $('rTemp').textContent=last?Math.round(last.Te)+' °C':'–';
+    // summary
+    var s=[];
+    var crowd=res.filter(function(r){return r.tR-TM<0.6;});
+    if(crowd.length>=3)s.push(rangeName(crowd[0].n,crowd[crowd.length-1].n)+' all elute within about half a minute of the dead time, crowded together.');
+    if(p.mode==='iso'){
+      if(last&&inWin.length>crowd.length)s.push('Later alkanes come out more and more slowly as broader, flatter peaks: C'+last.n+' elutes at '+fmtT(last.tR)+' with a width of '+fmtW(4*last.sig)+' min.');
+    }else{
+      var gaps=[];for(i=1;i<inWin.length;i++){if(inWin[i].n>=11)gaps.push(inWin[i].tR-inWin[i-1].tR);}
+      if(!out.length)s.push('All 19 alkanes elute by '+fmtT(last.tR)+'.');
+      if(gaps.length>=2)s.push('From C10 on, neighboring peaks arrive '+Math.min.apply(null,gaps).toFixed(1)+'–'+Math.max.apply(null,gaps).toFixed(1)+' min apart, and they stay similarly sharp because each alkane starts moving only when the oven gets hot enough.');
+      if(last)s.push((out.length?'The last peak in this window, C'+last.n+',':'C'+last.n)+' leaves the column at about '+Math.round(last.Te)+' °C.');
+    }
+    if(out.length){
+      var o=out[out.length-1];
+      s.push(rangeName(out[0].n,o.n)+(out.length>1?' are':' is')+' still on the column after '+(win>=120?'2 h':win+' min')+' (C'+o.n+' would take '+(o.tR<100?'':'about ')+fmtT(o.tR)+').');
+    }
+    $('sum').textContent=s.join(' ');
+    // table
+    var rows='';
+    res.forEach(function(r){
+      rows+='<tr'+(r.tR>win?' class="out"':'')+'><td>C'+r.n+'</td><td>'+fmtT(r.tR)+'</td><td>'+(r.tR<1e5?fmtW(4*r.sig)+' min':'–')+'</td><td>'+Math.round(r.Te)+' °C</td></tr>';
+    });
+    $('rows').innerHTML=rows;
+  }
+  function setMode(m){
+    st.mode=m;
+    document.querySelectorAll('button[data-mode]').forEach(function(b){b.setAttribute('aria-pressed',b.getAttribute('data-mode')===m?'true':'false');});
+    $('isoBox').hidden=m!=='iso';$('progBox').hidden=m!=='prog';
+    draw();
+  }
+  function setWin(w){
+    st.win=w;
+    document.querySelectorAll('button[data-win]').forEach(function(b){b.setAttribute('aria-pressed',+b.getAttribute('data-win')===w?'true':'false');});
+    draw();
+  }
+  document.querySelectorAll('button[data-mode]').forEach(function(b){b.addEventListener('click',function(){setMode(b.getAttribute('data-mode'));});});
+  document.querySelectorAll('button[data-win]').forEach(function(b){b.addEventListener('click',function(){setWin(+b.getAttribute('data-win'));});});
+  [tiso,t1,hold,rate,t2].forEach(function(inp){inp.addEventListener('input',draw);});
+  $('pIso').addEventListener('click',function(){tiso.value=150;st.win=60;setWin(60);setMode('iso');});
+  $('pProg').addEventListener('click',function(){t1.value=35;hold.value=2;rate.value=8;t2.value=280;setWin(60);setMode('prog');});
+  draw();
+})();
+</script>
+</body>
+</html>
