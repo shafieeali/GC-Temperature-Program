@@ -113,7 +113,7 @@ dialog::backdrop{background:rgba(10,20,30,.45)}
   <div class="dbody"><p class="note" style="margin-top:10px">Interactive Chemistry · Ali Shafiee · University of Florida</p><h3>The general elution problem</h3><p>A mixture of compounds with a wide range of boiling points can’t be separated well at one temperature. At a low temperature the early compounds are nicely separated but the late ones take hours and come out as broad, flat peaks; at a high temperature the late ones elute in good time but the early ones crowd together at the dead time. Load the n-alkanes C5–C20 and try both.</p>
 <h3>Why temperature programming works</h3><p>Raising the temperature lowers every retention factor, because a larger fraction of each compound is in the gas phase at any moment. In a program, each compound sits almost motionless at the head of the column until the oven is hot enough that its k drops to a few; then it moves off and elutes. Every compound therefore leaves with a similar small k, so all peaks are similarly sharp and evenly spaced. The k vs temperature view shows this: the dots mark where each alkane leaves the column.</p>
 <h3>Equations</h3><p>Isothermal: t<sub>R</sub> = t<sub>M</sub>(1 + k), σ = t<sub>R</sub>/√N. Programmed: T(t) = T₁ + r(t − t<sub>hold</sub>), and a compound elutes at the time t<sub>R</sub> when ∫ dt/[t<sub>M</sub>(1 + k(T(t)))] = 1, with peak width σ ≈ t<sub>M</sub>(1 + k<sub>elution</sub>)/√N. For a homologous series, ln k increases linearly with the number of carbons, and decreases with temperature as ΔH/RT.</p>
-<p class="note">Retention is modeled with ln k = (a + b·n)/T + c + d·n, fitted for n-alkanes on a 30 m nonpolar column, with constant dead time. Peaks are Gaussian with equal areas; very sharp peaks are cut off at the top. Real columns also change carrier gas velocity with temperature.</p></div>
+<h3>A critical pair and the Kovats index</h3><p>Ethylbenzene and p-xylene elute between octane and nonane on a nonpolar column, with Kovats retention indices of about 858 and 867. They are a real critical pair: a fast ramp or a high temperature merges them, which is the price of a short run. The retention index places any compound on the alkane scale, I = 100[n + (log t′<sub>x</sub> − log t′<sub>n</sub>)/(log t′<sub>n+1</sub> − log t′<sub>n</sub>)], and stays nearly constant from instrument to instrument, which is why libraries use it.</p><p class="note">Retention is modeled with ln k = (a + b·n)/T + c + d·n, fitted for n-alkanes on a 30 m nonpolar column, with constant dead time. Peaks are Gaussian with equal areas; very sharp peaks are cut off at the top. Real columns also change carrier gas velocity with temperature.</p></div>
 </dialog>
 <script>
 (function(){
@@ -185,7 +185,7 @@ function buildPanel(){
   else groups.filter(function(g){return g.id===pgroup;})[0].render(box);
   var rb=document.createElement('button');rb.type='button';rb.className='btn';rb.style.marginTop='12px';rb.textContent='Reset all to defaults';
   rb.addEventListener('click',function(){APP.reset();buildPanel();update(true);});box.appendChild(rb);
-  if(APP.S)refreshEq();if(APP.tabVals)APP.tabVals();
+  if(APP.S){APP.compute();refreshEq();}if(APP.tabVals)APP.tabVals();
 }
 function tabVal(id,txt){var a=$('pv-'+id);if(a)a.textContent=txt;var b=$('gh-'+id);if(b)b.textContent=txt;}
 function setFold(c){var r=document.querySelector('.right');r.classList.toggle('collapsed',c);var f=$('fold');f.textContent=c?'▴':'▾';f.setAttribute('aria-expanded',c?'false':'true');f.setAttribute('aria-label',c?'Show the controls':'Hide the controls to enlarge the view');}
@@ -247,22 +247,30 @@ function chain(n,dx,dy){var a=[];for(var i=0;i<n;i++)a.push({x:(dx||0)+i*0.866,y
 var KA=533.65,KB_=580,KC=-7.61182,KD=-0.733121;
 function lnk(n,TC){return (KA+KB_*n)/(TC+273.15)+KC+KD*n;}function kOf(n,TC){return Math.exp(lnk(n,TC));}
 var NAMES={1:'methane',2:'ethane',3:'propane',4:'butane',5:'pentane',6:'hexane',7:'heptane',8:'octane',9:'nonane',10:'decane',11:'undecane',12:'dodecane',13:'tridecane',14:'tetradecane',15:'pentadecane',16:'hexadecane',17:'heptadecane',18:'octadecane',19:'nonadecane',20:'eicosane',21:'heneicosane',22:'docosane',23:'tricosane',24:'tetracosane'};
-function D0(){return {mode:'iso',Ti:150,T1:35,hold:2,rate:8,T2:280,n0:5,n1:20,N:10000,tM:1.0,win:60};}
+function D0(){return {mode:'iso',Ti:150,T1:35,hold:2,rate:8,T2:280,n0:5,n1:20,N:10000,tM:1.0,win:'auto',arom:true};}
+var AROM=[{lab:'EB',name:'ethylbenzene',ri:858,h:330},{lab:'pX',name:'p-xylene',ri:867,h:280}];
+function aromMol(i){var a=ringA(),b=ringB();if(i===0){a.push({x:0,y:2},{x:0.866,y:2.5});b=b.concat([[0,6,1],[6,7,1]]);}else{a.push({x:0,y:2},{x:0,y:-2});b=b.concat([[0,6,1],[3,7,1]]);}return {a:a,b:b};}
+function species(){var sp=[];for(var n=S.n0;n<=S.n1;n++)sp.push({n:n,lab:'C'+n,name:NAMES[n],col:COLN(n),mol:chain(n),alk:true});
+  if(S.arom&&S.n0<=8&&S.n1>=9)AROM.forEach(function(a,i){sp.push({n:a.ri/100,lab:a.lab,name:a.name,col:'hsl('+a.h+',60%,'+(isDark()?66:44)+'%)',mol:aromMol(i),alk:false,ri:a.ri});});return sp;}
+function winV(){if(S.win!=='auto')return S.win;var last=R[R.length-1];return clamp(Math.ceil((last?last.tR:10)*1.08/5)*5,5,120);}
 var S=D0(),R=[];
 function ovenT(t){if(S.mode==='iso')return S.Ti;if(t<S.hold)return S.T1;return Math.min(Math.max(S.T2,S.T1),S.T1+S.rate*(t-S.hold));}
-function compute(){var res=[],n,i,rN=Math.sqrt(S.N);
-  if(S.mode==='iso'){for(n=S.n0;n<=S.n1;n++){var tr=S.tM*(1+kOf(n,S.Ti));res.push({n:n,tR:tr,sig:tr/rN,Te:S.Ti,ke:kOf(n,S.Ti)});}}
-  else{var T2=Math.max(S.T2,S.T1),cnt=S.n1-S.n0+1,x=[],done=[],left=cnt,t=0,dt=0.01,tEnd=S.hold+(T2-S.T1)/S.rate;for(i=0;i<cnt;i++){x.push(0);done.push(false);res.push(null);}
-    while(t<tEnd&&left>0){var Tm=ovenT(t+dt/2);for(i=0;i<cnt;i++){if(done[i])continue;var dx=dt/(S.tM*(1+kOf(i+S.n0,Tm)));if(x[i]+dx>=1){var te=t+(1-x[i])/dx*dt,Te=ovenT(te),ke=kOf(i+S.n0,Te);res[i]={n:i+S.n0,tR:te,sig:S.tM*(1+ke)/rN,Te:Te,ke:ke};done[i]=true;left--;}else x[i]+=dx;}t+=dt;}
-    for(i=0;i<cnt;i++)if(!done[i]){var kk=kOf(i+S.n0,T2);res[i]={n:i+S.n0,tR:t+(1-x[i])*S.tM*(1+kk),sig:S.tM*(1+kk)/rN,Te:T2,ke:kk};}}
-  R=res;}
+function compute(){var sp=species(),res=[],i,rN=Math.sqrt(S.N),cnt=sp.length;
+  function mk(o,tr,sg,Te,ke){return {n:o.n,lab:o.lab,name:o.name,col:o.col,mol:o.mol,alk:o.alk,ri:o.ri,tR:tr,sig:sg,Te:Te,ke:ke};}
+  if(S.mode==='iso'){sp.forEach(function(o){var k=kOf(o.n,S.Ti),tr=S.tM*(1+k);res.push(mk(o,tr,tr/rN,S.Ti,k));});}
+  else{var T2=Math.max(S.T2,S.T1),x=[],done=[],left=cnt,t=0,dt=0.01,tEnd=S.hold+(T2-S.T1)/S.rate;for(i=0;i<cnt;i++){x.push(0);done.push(false);res.push(null);}
+    while(t<tEnd&&left>0){var Tm=ovenT(t+dt/2);for(i=0;i<cnt;i++){if(done[i])continue;var dx=dt/(S.tM*(1+kOf(sp[i].n,Tm)));if(x[i]+dx>=1){var te=t+(1-x[i])/dx*dt,Te=ovenT(te),ke=kOf(sp[i].n,Te);res[i]=mk(sp[i],te,S.tM*(1+ke)/rN,Te,ke);done[i]=true;left--;}else x[i]+=dx;}t+=dt;}
+    for(i=0;i<cnt;i++)if(!done[i]){var kk=kOf(sp[i].n,T2);res[i]=mk(sp[i],t+(1-x[i])*S.tM*(1+kk),S.tM*(1+kk)/rN,T2,kk);}}
+  R=res.sort(function(p,q){return p.tR-q.tR;});
+  var eb=R.filter(function(r){return r.lab==='EB';})[0],px=R.filter(function(r){return r.lab==='pX';})[0];CRIT=eb&&px?2*Math.abs(px.tR-eb.tR)/(4*eb.sig+4*px.sig):null;}
+var CRIT=null;
 function fmtT(t){if(t<100)return t.toFixed(1)+' min';var h=t/60;if(h<48)return (h<10?h.toFixed(1):Math.round(h))+' h';var d=h/24;return d<365?Math.round(d)+' days':'over a year';}
-function inWin(){return R.filter(function(r){return r.tR<=S.win;});}
+function inWin(){var w=winV();return R.filter(function(r){return r.tR<=w;});}
 APP.live=function(){var w=inWin(),last=w[w.length-1],tot=R.length,gaps=[];for(var i=1;i<w.length;i++)gaps.push(w[i].tR-w[i-1].tR);
-  var crowd=R.filter(function(r){return r.tR-S.tM<0.6;}).length,bad=crowd>=3||w.length<tot,ws=w.map(function(r){return 4*r.sig;});
-  $('live').innerHTML='<div class="l1"><span class="h">'+w.length+' of '+tot+' eluted in '+(S.win>=120?'2 h':S.win+' min')+'</span><span class="sub">'+(last?'last: C'+last.n+' at '+fmtT(last.tR)+', '+Math.round(last.Te)+' °C':'')+'</span><span class="st" style="color:'+(bad?'var(--warn)':'var(--good)')+'">'+(bad?(crowd>=3?'Early peaks crowded':'Late peaks missing'):'Well spread')+'</span></div>'
-   +'<div class="l2">'+(ws.length?'<span>peak widths '+sig(Math.min.apply(null,ws),2)+'–'+sig(Math.max.apply(null,ws),2)+' min</span>':'')+(crowd>=3?'<span>'+crowd+' alkanes within 0.6 min of t<sub>M</sub></span>':'')+(w.length<tot?'<span>C'+R[tot-1].n+' would need '+fmtT(R[tot-1].tR)+'</span>':'')+'</div>';};
-APP.tabVals=function(){tabVal('oven',S.mode==='iso'?S.Ti+' °C':S.T1+'→'+S.T2+' °C');tabVal('smp','C'+S.n0+'–C'+S.n1);tabVal('col','N '+Math.round(S.N/1000)+'k');};
+  var crowd=R.filter(function(r){return r.tR-S.tM<0.6;}).length,critBad=CRIT!=null&&CRIT<1.5,bad=crowd>=3||w.length<tot||critBad,ws=w.map(function(r){return 4*r.sig;}),WV=winV();
+  $('live').innerHTML='<div class="l1"><span class="h">'+w.length+' of '+tot+' eluted in '+(WV>=120?sig(WV/60,2)+' h':WV+' min')+'</span><span class="sub">'+(last?'last: '+last.lab+' at '+fmtT(last.tR)+', '+Math.round(last.Te)+' °C':'')+'</span><span class="st" style="color:'+(bad?'var(--warn)':'var(--good)')+'">'+(bad?(critBad?'Critical pair overlaps':(crowd>=3?'Early peaks crowded':'Late peaks missing')):'Well spread')+'</span></div>'
+   +'<div class="l2">'+(ws.length?'<span>peak widths '+sig(Math.min.apply(null,ws),2)+'–'+sig(Math.max.apply(null,ws),2)+' min</span>':'')+(crowd>=3?'<span>'+crowd+' alkanes within 0.6 min of t<sub>M</sub></span>':'')+(w.length<tot?'<span>'+R[tot-1].lab+' would need '+fmtT(R[tot-1].tR)+'</span>':'')+(CRIT!=null?'<span style="color:'+(CRIT<1.5?'var(--warn)':'var(--good)')+'">ethylbenzene / p-xylene R<sub>s</sub> '+CRIT.toFixed(2)+'</span>':'')+'</div>';};
+APP.tabVals=function(){tabVal('oven',S.mode==='iso'?S.Ti+' °C':S.T1+'→'+S.T2+' °C');tabVal('smp','C'+S.n0+'–C'+S.n1+(S.arom?' + 2':''));tabVal('col','N '+Math.round(S.N/1000)+'k');};
 function mid(){return Math.round((S.n0+S.n1)/2);}
 APP.groups=function(){return [
  {id:'oven',tab:'Oven',title:'Oven temperature',render:function(b){
@@ -279,20 +287,22 @@ APP.groups=function(){return [
  {id:'smp',tab:'Sample',title:'Sample: n-alkanes',render:function(b){
    ctlSlider(b,{id:'n0',label:'Smallest alkane',min:3,max:20,step:1,get:function(){return S.n0;},set:function(v){S.n0=Math.min(v,S.n1-1);},fmt:function(v){return 'C'+v+' ('+NAMES[v]+')';},eq:function(){return 'ln k grows linearly with '+R_('n')+': each CH₂ adds the same increment'+N_(' (ΔH ≈ 4.8 kJ/mol per CH₂)');}});
    ctlSlider(b,{id:'n1',label:'Largest alkane',min:5,max:24,step:1,get:function(){return S.n1;},set:function(v){S.n1=Math.max(v,S.n0+1);},fmt:function(v){return 'C'+v+' ('+NAMES[v]+')';}});
-   ctlChips(b,{id:'win',label:'Time axis',options:[[10,'10 min'],[30,'30 min'],[60,'60 min'],[120,'2 h']],get:function(){return S.win;},set:function(v){S.win=v;}});
+   ctlCheck(b,{label:'Add ethylbenzene and p-xylene (a critical pair that elutes between C8 and C9)',get:function(){return S.arom;},set:function(v){S.arom=v;},rebuild:true});
+   if(S.arom)addEq(b,'ri',function(){return 'Kovats index: I = 100[n + (log t′<sub>x</sub> − log t′<sub>n</sub>)/(log t′<sub>n+1</sub> − log t′<sub>n</sub>)]<br>'+N_('ethylbenzene ≈ 858, p-xylene ≈ 867 on PDMS; '+(CRIT!=null?'R<sub>s</sub> = '+CRIT.toFixed(2)+(CRIT<1.5?': try a slower ramp or a lower temperature':''):'needs C8 and C9 in the sample'));});
+   ctlChips(b,{id:'win',label:'Time axis',options:[['auto','Auto'],[10,'10 min'],[30,'30 min'],[60,'60 min'],[120,'2 h']],get:function(){return S.win;},set:function(v){S.win=v;}});
    ctlNote(b,'A homologous series (each member one CH₂ longer) spans a huge range of boiling points, which is exactly what makes it hard to separate isothermally.');}},
  {id:'col',tab:'Column',title:'Column',render:function(b){
    ctlSlider(b,{id:'N',label:'Plates, N',min:2000,max:100000,log:true,get:function(){return S.N;},set:function(v){S.N=Math.round(v/100)*100;},fmt:function(v){return Math.round(v).toLocaleString('en-US');},
      eq:function(){return S.mode==='iso'?'σ = t<sub>R</sub>/√'+R_('N'):'σ ≈ t<sub>M</sub>(1 + k<sub>elution</sub>)/√'+R_('N')+N_('  (k at the moment it leaves)');}});
    ctlSlider(b,{id:'tM',label:'Dead time, t<sub>M</sub>',min:0.5,max:3,step:0.1,get:function(){return S.tM;},set:function(v){S.tM=v;},fmt:function(v){return v.toFixed(1)+' min';},eq:function(){return 't<sub>R</sub> = '+R_('t<sub>M</sub>')+'(1 + k)';}});
    ctlNote(b,'Modeled on a 30 m nonpolar (PDMS) capillary column.');}}];};
-APP.S=true;APP.reset=function(){S=D0();compute();};APP.compute=compute;
+APP.S=true;APP.reset=function(){S=D0();compute();};APP.compute=compute;APP.theme=function(){compute();};
 APP.hash=function(h){if(h==='program'){S.mode='prog';compute();buildPanel();update(true);}};
 /* chromatogram with oven trace and structure cards */
 var COLN=function(n){var h=200+(n-3)/21*-170;return 'hsl('+h+',55%,'+(isDark()?62:42)+'%)';};
-function drawChrom(){if(!$('v-chrom').classList.contains('on'))return;var svg=$('chsv'),wh=svgSize(svg),W=wh[0],H=wh[1],win=S.win,PL=10,PR=40,PB=34,cardH=W<480?40:56,PT=cardH+18;
+function drawChrom(){if(!$('v-chrom').classList.contains('on'))return;var svg=$('chsv'),wh=svgSize(svg),W=wh[0],H=wh[1],win=winV(),PL=10,PR=40,PB=34,cardH=W<480?40:56,PT=cardH+18;
   function X(t){return PL+t/win*(W-PL-PR);}var SIGR=0.025,HM=1/(SIGR*2.5066),TOP=PT+4;function Ys(v){return Math.max(TOP,H-PB-v/HM*(H-PB-TOP));}function Yt(T){return H-PB-T/350*(H-PB-PT);}
-  var st=win<=10?2:(win<=30?5:(win<=60?10:20));for(var t=0;t<=win;t+=st){svg.appendChild(el('line',{x1:X(t),y1:PT,x2:X(t),y2:H-PB,'class':'gl'}));svg.appendChild(el('text',{x:X(t),y:H-PB+15,'text-anchor':'middle','class':'tk'},String(t)));}
+  var st=niceStep(win,W<420?4:6);for(var t=0;t<=win;t+=st){svg.appendChild(el('line',{x1:X(t),y1:PT,x2:X(t),y2:H-PB,'class':'gl'}));svg.appendChild(el('text',{x:X(t),y:H-PB+15,'text-anchor':'middle','class':'tk'},String(t)));}
   [0,100,200,300].forEach(function(T){svg.appendChild(el('text',{x:W-PR+5,y:Yt(T)+4,'class':'tk',fill:'var(--c4)'},T+'°'));});
   svg.appendChild(el('line',{x1:PL,y1:H-PB,x2:W-PR,y2:H-PB,'class':'ax'}));svg.appendChild(el('text',{x:(PL+W-PR)/2,y:H-3,'text-anchor':'middle','class':'axt'},'Time (min)'));
   var pts=[0];if(S.mode==='prog'){pts.push(S.hold,S.hold+(Math.max(S.T2,S.T1)-S.T1)/S.rate);}pts.push(win);var td='';pts.filter(function(v){return v<=win;}).sort(function(a,b){return a-b;}).forEach(function(v){td+=(td?'L':'M')+X(v).toFixed(1)+' '+Yt(ovenT(v)).toFixed(1);});
@@ -300,12 +310,12 @@ function drawChrom(){if(!$('v-chrom').classList.contains('on'))return;var svg=$(
   var vis=R.filter(function(r){return r.tR-6*r.sig<win;}),xs=[];for(var i=0;i<=1400;i++)xs.push(win*i/1400);vis.forEach(function(r){for(var j=-24;j<=24;j++){var v=r.tR+j*r.sig/4;if(v>=0&&v<=win)xs.push(v);}});xs.sort(function(a,b){return a-b;});
   var d='';xs.forEach(function(xv){var s2=0;vis.forEach(function(r){var z=(xv-r.tR)/r.sig;if(z>-9&&z<9)s2+=Math.exp(-0.5*z*z)/(r.sig*2.5066);});d+=(d?'L':'M')+X(xv).toFixed(2)+' '+Ys(s2).toFixed(2);});
   svg.appendChild(el('path',{d:d,fill:'none',stroke:'var(--navy)','stroke-width':1.5}));
-  var iw=inWin(),lab=[],right=-1e9;iw.forEach(function(r){var x=X(r.tR),txt='C'+r.n;if(x-right>=24){lab.push(r);right=x;svg.appendChild(el('text',{x:x,y:Ys(1/(r.sig*2.5066))-4,'text-anchor':'middle','font-size':10,fill:COLN(r.n),'class':'halo'},txt));}});
-  var pick=[];if(iw.length){pick.push(iw[0]);if(iw.length>2)pick.push(iw[Math.floor(iw.length/2)]);if(iw.length>1)pick.push(iw[iw.length-1]);}
-  var slot=(W-PL-PR)/Math.max(1,pick.length);pick.forEach(function(r,i){var c=chain(r.n),m=molSVG(c,false,W<480?4.5:6,COLN(r.n)),sc=Math.min(1,(slot-10)/m.w,(cardH-14)/m.h),cx=PL+slot*(i+0.5);
+  var iw=inWin(),lab=[],right=-1e9;iw.forEach(function(r){var x=X(r.tR),txt=r.lab;if(x-right>=22||!r.alk){lab.push(r);right=x;svg.appendChild(el('text',{x:x,y:Ys(1/(r.sig*2.5066))-4-(r.lab==='pX'?12:0),'text-anchor':'middle','font-size':10,'font-weight':r.alk?'normal':'bold',fill:r.col,'class':'halo'},txt));}});
+  var pick=[],al=iw.filter(function(r){return r.alk;}),ar=iw.filter(function(r){return !r.alk;});if(al.length)pick.push(al[0]);if(ar.length)pick=pick.concat(ar);else if(al.length>2)pick.push(al[Math.floor(al.length/2)]);if(al.length>1)pick.push(al[al.length-1]);pick.sort(function(p,q){return p.tR-q.tR;});
+  var slot=(W-PL-PR)/Math.max(1,pick.length);pick.forEach(function(r,i){var c=r.mol,m=molSVG(c,false,W<480?(r.alk?4.5:6.5):(r.alk?6:8.5),r.col),sc=Math.min(1,(slot-10)/m.w,(cardH-14)/m.h),cx=PL+slot*(i+0.5);
     var g=el('g',{transform:'translate('+(cx-m.w*sc/2).toFixed(1)+','+(4+(cardH-14-m.h*sc)).toFixed(1)+') scale('+sc.toFixed(3)+')'});g.innerHTML=m.svg;svg.appendChild(g);
-    svg.appendChild(el('text',{x:cx,y:cardH+2,'text-anchor':'middle','font-size':10.5,'font-weight':'bold',fill:COLN(r.n),'class':'halo'},(W<600?'C'+r.n+', ':'C'+r.n+' '+NAMES[r.n]+', ')+fmtT(r.tR)));
-    svg.appendChild(el('line',{x1:cx,y1:cardH+6,x2:X(r.tR),y2:Ys(1/(r.sig*2.5066))-12,stroke:COLN(r.n),'stroke-dasharray':'2 2',opacity:.7}));});
+    svg.appendChild(el('text',{x:cx,y:cardH+2,'text-anchor':'middle','font-size':10.5,'font-weight':'bold',fill:r.col,'class':'halo'},(W<600?r.lab+', ':(r.alk?r.lab+' '+r.name:r.name)+', ')+fmtT(r.tR)));
+    svg.appendChild(el('line',{x1:cx,y1:cardH+6,x2:X(r.tR),y2:Ys(1/(r.sig*2.5066))-12,stroke:r.col,'stroke-dasharray':'2 2',opacity:.7}));});
   svg.appendChild(el('text',{x:W-PR-4,y:PT+12,'text-anchor':'end','font-size':11,fill:'var(--c4)','class':'halo'},S.mode==='iso'?'oven '+S.Ti+' °C':'oven '+S.T1+' → '+Math.max(S.T2,S.T1)+' °C'));}
 /* k vs temperature: why programming works */
 function drawKT(){if(!$('v-kt').classList.contains('on'))return;var svg=$('ktsv'),wh=svgSize(svg),W=wh[0],H=wh[1],PL=40,PR=60,PT=16,PB=34,T0=30,T1=330,y0=-2,y1=4;
@@ -316,15 +326,16 @@ function drawKT(){if(!$('v-kt').classList.contains('on'))return;var svg=$('ktsv'
   svg.appendChild(el('line',{x1:PL,y1:H-PB,x2:W-PR,y2:H-PB,'class':'ax'}));svg.appendChild(el('text',{x:(PL+W-PR)/2,y:H-3,'text-anchor':'middle','class':'axt'},'Column temperature (°C)'));svg.appendChild(el('text',{transform:'translate(11,'+((PT+H-PB)/2)+') rotate(-90)','text-anchor':'middle','class':'axt'},'k (log scale)'));
   var used=[];for(var n=S.n0;n<=S.n1;n++){var d='';for(var i=0;i<=60;i++){var TT=T0+(T1-T0)*i/60;d+=(d?'L':'M')+X(TT).toFixed(1)+' '+Y(Math.log10(kOf(n,TT))).toFixed(1);}svg.appendChild(el('path',{d:d,fill:'none',stroke:COLN(n),'stroke-width':1.6}));
     var ye=Y(Math.log10(kOf(n,T1)));if((n-S.n0)%2===0||n===S.n1){while(used.some(function(u){return Math.abs(u-ye)<11;}))ye-=11;used.push(ye);svg.appendChild(el('text',{x:W-PR+4,y:ye+4,'font-size':10,fill:COLN(n)},'C'+n));}}
-  if(S.mode==='iso'){svg.appendChild(el('line',{x1:X(S.Ti),y1:PT,x2:X(S.Ti),y2:H-PB,stroke:'var(--c4)','stroke-width':2}));R.forEach(function(r){svg.appendChild(el('circle',{cx:X(S.Ti),cy:Y(Math.log10(r.ke)),r:3.5,fill:COLN(r.n)}));});
+  R.filter(function(r){return !r.alk;}).forEach(function(r){var d2='';for(var i2=0;i2<=60;i2++){var T3=T0+(T1-T0)*i2/60;d2+=(d2?'L':'M')+X(T3).toFixed(1)+' '+Y(Math.log10(kOf(r.n,T3))).toFixed(1);}svg.appendChild(el('path',{d:d2,fill:'none',stroke:r.col,'stroke-width':2,'stroke-dasharray':'5 3'}));});
+  if(S.mode==='iso'){svg.appendChild(el('line',{x1:X(S.Ti),y1:PT,x2:X(S.Ti),y2:H-PB,stroke:'var(--c4)','stroke-width':2}));R.forEach(function(r){svg.appendChild(el('circle',{cx:X(S.Ti),cy:Y(Math.log10(r.ke)),r:3.5,fill:r.col}));});
     svg.appendChild(el('text',{x:X(S.Ti)+4,y:PT+12,'font-size':11,fill:'var(--c4)','class':'halo'},'one temperature: k spans '+sig(R[0].ke,1)+' to '+sig(R[R.length-1].ke,2)));}
-  else{svg.appendChild(el('rect',{x:X(S.T1),y:PT,width:X(Math.max(S.T2,S.T1))-X(S.T1),height:H-PT-PB,fill:'var(--c4)',opacity:.07}));R.forEach(function(r){svg.appendChild(el('circle',{cx:X(r.Te),cy:Y(Math.log10(r.ke)),r:3.5,fill:COLN(r.n),stroke:'var(--bg)'}));});
+  else{svg.appendChild(el('rect',{x:X(S.T1),y:PT,width:X(Math.max(S.T2,S.T1))-X(S.T1),height:H-PT-PB,fill:'var(--c4)',opacity:.07}));R.forEach(function(r){svg.appendChild(el('circle',{cx:X(r.Te),cy:Y(Math.log10(r.ke)),r:3.5,fill:r.col,stroke:'var(--bg)'}));});
     svg.appendChild(el('text',{x:X(S.T1)+4,y:PT+12,'font-size':11,fill:'var(--c4)','class':'halo'},'dots: where each alkane leaves the column'));}}
 /* column animation */
 var CA=null,ccx=null,CW2=600,CH2=300;
 function caSize(){var cv=$('cav');ccx=cv.getContext('2d');var r=cv.getBoundingClientRect();if(!r.width)return false;var d=Math.min(2,window.devicePixelRatio||1);CW2=r.width;CH2=r.height;cv.width=CW2*d;cv.height=CH2*d;ccx.setTransform(d,0,0,d,0,0);return true;}
 function caInit(){if(!caSize())return;CA={t:0,x:R.map(function(){return 0;}),hold:0};}
-function caStep(dt){if(!CA)return;var tEnd=Math.min(S.win,R[R.length-1].tR*1.02),speed=tEnd/10;if(CA.hold>0){CA.hold-=dt;if(CA.hold<=0)caInit();return;}
+function caStep(dt){if(!CA)return;var tEnd=Math.min(winV(),R[R.length-1].tR*1.02),speed=tEnd/10;if(CA.hold>0){CA.hold-=dt;if(CA.hold<=0)caInit();return;}
   var h=dt*speed,sub=Math.max(1,Math.ceil(h/0.02)),hh=h/sub;for(var q=0;q<sub;q++){var T=ovenT(CA.t+hh/2);R.forEach(function(r,i){if(CA.x[i]<1.05)CA.x[i]+=hh/(S.tM*(1+kOf(r.n,T)));});CA.t+=hh;}
   if(CA.t>=tEnd)CA.hold=2;}
 function caDraw(){if(!CA||!ccx)return;var W=CW2,H=CH2,x0=20,x1=W-60,n=R.length,top=46,row=(H-top-30)/n;ccx.clearRect(0,0,W,H);
@@ -332,12 +343,12 @@ function caDraw(){if(!CA||!ccx)return;var W=CW2,H=CH2,x0=20,x1=W-60,n=R.length,t
   ccx.fillStyle=PAL.muted;ccx.font='11px Arial';ccx.fillText('Each row is one alkane’s band traveling the column (injector left, detector right).',10,34);
   ccx.fillStyle='rgba(184,96,26,'+(0.05+0.25*T/325)+')';ccx.fillRect(x0,top-4,x1-x0,H-top-20);
   R.forEach(function(r,i){var y=top+i*row+row/2,f=Math.min(CA.x[i],1),bw=Math.max(2,(x1-x0)*3*Math.sqrt(Math.max(f,0.002)/S.N));ccx.strokeStyle=PAL.grid;ccx.beginPath();ccx.moveTo(x0,y);ccx.lineTo(x1,y);ccx.stroke();
-    if(CA.x[i]<1){var cx=x0+f*(x1-x0),g=ccx.createLinearGradient(cx-bw,0,cx+bw,0);g.addColorStop(0,'rgba(0,0,0,0)');g.addColorStop(0.5,COLN(r.n));g.addColorStop(1,'rgba(0,0,0,0)');ccx.fillStyle=g;ccx.fillRect(cx-bw,y-Math.min(6,row/2-1),2*bw,Math.min(12,row-2));}
-    ccx.fillStyle=CA.x[i]>=1?PAL.good:COLN(r.n);ccx.font=(row<12?9:10)+'px Arial';ccx.fillText('C'+r.n+(CA.x[i]>=1?' ✓':''),x1+6,y+3);});}
+    if(CA.x[i]<1){var cx=x0+f*(x1-x0),g=ccx.createLinearGradient(cx-bw,0,cx+bw,0);g.addColorStop(0,'rgba(0,0,0,0)');g.addColorStop(0.5,r.col);g.addColorStop(1,'rgba(0,0,0,0)');ccx.fillStyle=g;ccx.fillRect(cx-bw,y-Math.min(6,row/2-1),2*bw,Math.min(12,row-2));}
+    ccx.fillStyle=CA.x[i]>=1?PAL.good:r.col;ccx.font=(row<12?9:10)+'px Arial';ccx.fillText(r.lab+(CA.x[i]>=1?' ✓':''),x1+6,y+3);});}
 APP.views=[{id:'chrom',label:'Chromatogram',draw:drawChrom},{id:'kt',label:'k vs temperature',draw:drawKT},
  {id:'col',label:'Column',enter:caInit,reset:caInit,resize:caInit,step:caStep,draw:caDraw},
- {id:'nums',label:'Numbers',draw:function(){if(!$('v-nums').classList.contains('on'))return;var h='<div class="wrapx"><table><tr><th>Alkane</th><th>t<sub>R</sub></th><th>4σ (min)</th><th>T at elution</th><th>k at elution</th><th>R<sub>s</sub> to previous</th></tr>';
-   R.forEach(function(r,i){var rs=i?2*(r.tR-R[i-1].tR)/(4*r.sig+4*R[i-1].sig):null;h+='<tr'+(r.tR>S.win?' style="color:var(--muted)"':'')+'><td>C'+r.n+' '+NAMES[r.n]+'</td><td>'+fmtT(r.tR)+'</td><td>'+(r.tR<1e5?(4*r.sig).toFixed(3):'–')+'</td><td>'+Math.round(r.Te)+' °C</td><td>'+sig(r.ke,2)+'</td><td>'+(rs==null?'':rs.toFixed(1))+'</td></tr>';});
+ {id:'nums',label:'Numbers',draw:function(){if(!$('v-nums').classList.contains('on'))return;var h='<div class="wrapx"><table><tr><th>Alkane</th><th>t<sub>R</sub></th><th>4σ (min)</th><th>T at elution</th><th>k at elution</th><th>R<sub>s</sub> to previous</th><th>Retention index</th></tr>';
+   R.forEach(function(r,i){var rs=i?2*(r.tR-R[i-1].tR)/(4*r.sig+4*R[i-1].sig):null;h+='<tr'+(r.tR>winV()?' style="color:var(--muted)"':'')+'><td>'+r.lab+' '+r.name+'</td><td>'+fmtT(r.tR)+'</td><td>'+(r.tR<1e5?(4*r.sig).toFixed(3):'–')+'</td><td>'+Math.round(r.Te)+' °C</td><td>'+sig(r.ke,2)+'</td><td>'+(rs==null?'':rs.toFixed(2))+'</td><td>'+Math.round(r.n*100)+'</td></tr>';});
    $('nmt').innerHTML=h+'</table></div><p>Retention model: ln k = (a + b·n)/T + c + d·n, with T in kelvin, fitted for n-alkanes on a 30 m PDMS column (a = 533.65 K, b = 580 K, c = −7.612, d = −0.7331).</p>';}}];
 
 boot();
